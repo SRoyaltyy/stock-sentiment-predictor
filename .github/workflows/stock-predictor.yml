@@ -1,0 +1,43 @@
+name: Stock Sentiment Predictor
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # Daily at 9 AM UTC (adjust as needed)
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  run-predictor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run stock predictor
+        run: python main.py
+
+      - name: Save predictions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-predictions
+          path: data/predictions.txt
+
+      - name: Commit predictions back to repo (optional)
+        run: |
+          if [ -f data/predictions.txt ]; then
+            git config --global user.name "SuperGrok"
+            git config --global user.email "grok@x.ai"
+            git add data/predictions.txt
+            git commit -m "Update daily predictions $(date +'%Y-%m-%d')" || echo "No changes"
+            git push
+          fi
+        continue-on-error: true
