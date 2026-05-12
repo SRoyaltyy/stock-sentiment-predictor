@@ -1,0 +1,5 @@
+yfinance
+pandas
+xgboost
+scikit-learn
+joblib
