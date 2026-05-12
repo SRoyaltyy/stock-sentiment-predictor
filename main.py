@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from datetime import datetime
+from datetime import datetime, timezone
 
 TICKERS = ["TSLA", "NVDA", "AAPL", "GME", "AMZN"]
 PREDICTION_HORIZONS = [5, 10]  # ≈1 week / 2 weeks
@@ -18,17 +18,23 @@ LIVE_X_SENTIMENT = {
 }
 
 print("🚀 SuperGrok Stock Predictor - Running in GitHub Actions")
-print(f"Run time: {datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+print(f"Run time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
 
-# 1. Get price data + technicals (FIXED: multi_level_index=False)
+# 1. Get price data + technicals (FIXED for 2026 yfinance)
 def get_price_data():
     data = {}
     for ticker in TICKERS:
         df = yf.download(ticker, period="2y", progress=False, multi_level_index=False)
         if df.empty:
             continue
-        # Technical indicators
-        df["rsi"] = df["Close"].rolling(14).apply(lambda x: 100 - 100 / (1 + (x.diff().clip(lower=0).rolling(14).mean() / x.diff().clip(upper=0).rolling(14).mean().abs())), raw=False)
+        # Technical indicators - clean vectorized RSI
+        delta = df["Close"].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.rolling(14).mean()
+        avg_loss = loss.rolling(14).mean()
+        rs = avg_gain / avg_loss
+        df["rsi"] = 100 - (100 / (1 + rs))
         df["macd"] = df["Close"].ewm(span=12).mean() - df["Close"].ewm(span=26).mean()
         df["sma_20"] = df["Close"].rolling(20).mean()
         df["sma_50"] = df["Close"].rolling(50).mean()
