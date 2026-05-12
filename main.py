@@ -22,6 +22,15 @@ LIVE_X_SENTIMENT = {
 print("🚀 SuperGrok Stock Predictor - Running in GitHub Actions")
 print(f"Run time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
+def calculate_rsi(series, window=14):
+    """Clean vectorized RSI that works reliably in GitHub Actions."""
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0).rolling(window=window).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=window).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
 # Get price data + technicals
 def get_price_data():
     data = {}
@@ -29,8 +38,8 @@ def get_price_data():
         df = yf.download(ticker, period="2y", progress=False)
         if df.empty:
             continue
-        # Technical indicators
-        df["rsi"] = df["Close"].rolling(14).apply(lambda x: 100 - 100 / (1 + (x.diff().clip(lower=0).rolling(14).mean() / abs(x.diff().clip(upper=0).rolling(14).mean()))), raw=False)
+        # Technical indicators - FIXED RSI
+        df["rsi"] = calculate_rsi(df["Close"])
         df["macd"] = df["Close"].ewm(span=12).mean() - df["Close"].ewm(span=26).mean()
         df["sma_20"] = df["Close"].rolling(20).mean()
         df["sma_50"] = df["Close"].rolling(50).mean()
@@ -103,7 +112,7 @@ if X_list:
             weeks = "1 week" if horizon == 5 else "2 weeks"
             print(f"   → {weeks}: {direction} ({prob_up*100:.0f}% confidence)")
 
-    # Save results to file so workflow can upload or commit
+    # Save results
     os.makedirs("data", exist_ok=True)
     with open("data/predictions.txt", "w") as f:
         f.write(f"Predictions as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
